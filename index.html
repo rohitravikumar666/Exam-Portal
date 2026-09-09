@@ -42,11 +42,11 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
 
-    h1, h2, h3 { text-align: center; color: var(--primary); }
+    h1, h2, h3 { text-align: center; color: var(--primary); margin-top: 0; }
 
     .nav-buttons {
       display: flex;
-      gap: 10px;
+      gap: 15px;
       justify-content: center;
       margin-bottom: 25px;
       flex-wrap: wrap;
@@ -56,7 +56,7 @@
       background-color: var(--primary);
       color: white;
       border: none;
-      padding: 10px 20px;
+      padding: 12px 24px;
       font-size: 15px;
       font-weight: 600;
       border-radius: 6px;
@@ -68,6 +68,7 @@
     button:disabled { background-color: #ccc; cursor: not-allowed; }
     button.btn-danger { background-color: var(--danger); }
     button.btn-success { background-color: var(--success); }
+    button.btn-secondary { background-color: #5f6368; }
 
     .view { display: none; }
     .active { display: block; }
@@ -112,14 +113,11 @@
     .option-btn.selected { background: #d2e3fc; border-color: var(--primary); font-weight: bold; }
 
     .form-group { margin-bottom: 15px; }
-    .form-row {
-      display: flex;
-      gap: 15px;
-    }
+    .form-row { display: flex; gap: 15px; }
     .form-row .form-group { flex: 1; }
 
     label { display: block; margin-bottom: 5px; font-weight: 600; }
-    input[type="text"], input[type="number"], select {
+    input[type="text"], input[type="number"], input[type="password"], select {
       width: 100%;
       padding: 10px;
       border: 1px solid var(--border);
@@ -140,11 +138,21 @@
     .result-table th { background-color: #f1f3f4; }
 
     #screenshot-area {
-      padding: 20px;
+      padding: 25px;
       background: #ffffff;
+      border: 2px solid var(--border);
       border-radius: 8px;
     }
     
+    .student-details-card {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border);
+    }
+    .student-details-card p { margin: 5px 0; font-size: 15px; }
+
     .status-badge {
       text-align: center;
       padding: 6px;
@@ -159,14 +167,66 @@
 <body>
 
 <div class="container">
-  <h1>Portal Examination System</h1>
+  <h1 id="portal-title">Online Assessment Portal</h1>
   <div id="sync-status" class="status-badge">Connecting to Live Cloud Database...</div>
 
-  <!-- Navigation -->
-  <div class="nav-buttons" id="main-nav">
-    <button onclick="showView('modify-view')">1) Add / Modify Questions</button>
-    <button onclick="accessAdminSettings()">2) Admin Settings</button>
-    <button onclick="startExamView()" id="nav-start-btn">3) Start Exam</button>
+  <!-- INITIAL VIEW: ENTRY MODES -->
+  <div id="initial-view" class="view active">
+    <h2>Welcome to Assessment Portal</h2>
+    <p style="text-align:center; color:#5f6368; margin-bottom: 30px;">Please select your role to proceed:</p>
+    <div class="nav-buttons">
+      <button style="font-size: 18px; padding: 15px 30px;" onclick="showStudentLogin()">Student Login</button>
+      <button style="font-size: 18px; padding: 15px 30px;" class="btn-secondary" onclick="showFacultyLoginModal()">Faculty Login</button>
+    </div>
+  </div>
+
+  <!-- STUDENT LOGIN VIEW -->
+  <div id="student-login-view" class="view">
+    <h2>Student Details</h2>
+    <div class="student-details-card">
+      <div class="form-group">
+        <label>Full Name:</label>
+        <input type="text" id="stud-name" placeholder="Enter full name">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Department / Branch:</label>
+          <input type="text" id="stud-dept" placeholder="e.g. Civil Engineering">
+        </div>
+        <div class="form-group">
+          <label>Semester:</label>
+          <input type="text" id="stud-sem" placeholder="e.g. S6">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Class Number:</label>
+          <input type="text" id="stud-class-num" placeholder="e.g. C1">
+        </div>
+        <div class="form-group">
+          <label>Class Roll Number:</label>
+          <input type="text" id="stud-roll-num" placeholder="e.g. 24">
+        </div>
+      </div>
+    </div>
+    <div style="text-align: center;">
+      <button class="btn-success" style="font-size: 16px;" onclick="validateAndStartExam()">Proceed to Start Exam</button>
+      <button class="btn-secondary" onclick="showView('initial-view')">Back</button>
+    </div>
+  </div>
+
+  <!-- FACULTY DASHBOARD VIEW -->
+  <div id="faculty-dashboard-view" class="view">
+    <h2>Faculty Control Panel</h2>
+    <div class="nav-buttons" style="margin-bottom: 20px;">
+      <button onclick="showView('modify-view')">1) Add / Modify Questions</button>
+      <button onclick="showView('admin-view')">2) Admin Settings</button>
+      <button class="btn-secondary" onclick="showView('initial-view')">Exit Faculty Portal</button>
+    </div>
+    <div style="background: #e8f0fe; padding: 15px; border-radius: 8px; text-align: center;">
+      <p style="margin-top:0; font-weight: bold;">Quick Controls:</p>
+      <button id="toggle-student-btn" onclick="toggleStudentLogin()">Toggle Student Login Access</button>
+    </div>
   </div>
 
   <!-- VIEW 1: ADD / MODIFY QUESTIONS -->
@@ -194,6 +254,7 @@
       </select>
     </div>
     <button class="btn-success" onclick="saveQuestionToCloud()">Save Question Globally</button>
+    <button class="btn-secondary" onclick="showView('faculty-dashboard-view')">Back to Dashboard</button>
   </div>
 
   <!-- VIEW 2: ADMIN SETTINGS -->
@@ -201,9 +262,14 @@
     <h2>Admin Settings</h2>
     
     <div class="form-group">
-      <label>Exam Status:</label>
+      <label>Exam Name (Displayed at Top & on Results):</label>
+      <input type="text" id="admin-exam-name" placeholder="e.g. Mid-Semester Concrete Technology Assessment">
+    </div>
+
+    <div class="form-group">
+      <label>Student Login Access:</label>
       <select id="admin-exam-status">
-        <option value="enabled">Enabled</option>
+        <option value="enabled">Enabled (Students Can Start)</option>
         <option value="disabled">Disabled (Temporarily Lock Exam)</option>
       </select>
     </div>
@@ -236,6 +302,7 @@
     </div>
 
     <button class="btn-success" onclick="saveAdminSettings()">Save Admin Settings</button>
+    <button class="btn-secondary" onclick="showView('faculty-dashboard-view')">Back to Dashboard</button>
   </div>
 
   <!-- VIEW 3: START EXAM -->
@@ -262,7 +329,16 @@
   <!-- RESULT VIEW -->
   <div id="result-view" class="view">
     <div id="screenshot-area">
-      <h2>Exam Completion Summary</h2>
+      <h1 id="result-exam-title" style="margin-bottom: 5px;">Exam Title</h1>
+      <h3 style="margin-top:0; color:#5f6368;">Official Examination Result</h3>
+      
+      <div class="student-details-card">
+        <p><strong>Student Name:</strong> <span id="res-stud-name">-</span></p>
+        <p><strong>Department:</strong> <span id="res-stud-dept">-</span> | <strong>Semester:</strong> <span id="res-stud-sem">-</span></p>
+        <p><strong>Class No:</strong> <span id="res-stud-class-num">-</span> | <strong>Roll No:</strong> <span id="res-stud-roll-num">-</span></p>
+        <p><strong>Date & Time of Exam:</strong> <span id="res-exam-datetime" style="color: var(--primary-dark); font-weight: bold;">-</span></p>
+      </div>
+
       <h3 id="total-score-display">Total Score: 0</h3>
       
       <table class="result-table">
@@ -300,7 +376,7 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
-  const ADMIN_PASSWORD = "AP2025";
+  const FACULTY_PASSWORD = "CET_Civil@2026";
 
   let questions = [];
   let userAnswers = [];
@@ -308,8 +384,17 @@
   let timerInterval = null;
   let timeLeft = 15;
 
+  let currentStudent = {
+    name: '',
+    dept: '',
+    sem: '',
+    classNum: '',
+    rollNum: ''
+  };
+
   // Dynamic Admin Configuration
   let adminConfig = {
+    examName: "Online Assessment Portal",
     examEnabled: true,
     sectionsCount: 12,
     qnsPerSection: 5,
@@ -328,6 +413,9 @@
       const data = snapshot.val();
       if (data) {
         adminConfig = data;
+        if (adminConfig.examName) {
+          document.getElementById('portal-title').innerText = adminConfig.examName;
+        }
       }
       fetchQuestionsFromCloud();
     });
@@ -368,6 +456,69 @@
   function showView(viewId) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(viewId).classList.add('active');
+  }
+
+  // Student Access Controls
+  function showStudentLogin() {
+    if (!adminConfig.examEnabled) {
+      alert("Student Login is currently disabled by Faculty.");
+      return;
+    }
+    showView('student-login-view');
+  }
+
+  function validateAndStartExam() {
+    let name = document.getElementById('stud-name').value.trim();
+    let dept = document.getElementById('stud-dept').value.trim();
+    let sem = document.getElementById('stud-sem').value.trim();
+    let classNum = document.getElementById('stud-class-num').value.trim();
+    let rollNum = document.getElementById('stud-roll-num').value.trim();
+
+    if (!name || !dept || !sem || !classNum || !rollNum) {
+      alert("Please fill in all student details before starting the exam.");
+      return;
+    }
+
+    currentStudent = { name, dept, sem, classNum, rollNum };
+    startExamView();
+  }
+
+  // Faculty Access Controls
+  function showFacultyLoginModal() {
+    let pass = prompt("Enter Faculty Password:");
+    if (pass === FACULTY_PASSWORD) {
+      document.getElementById('admin-exam-name').value = adminConfig.examName || "Online Assessment Portal";
+      document.getElementById('admin-exam-status').value = adminConfig.examEnabled ? "enabled" : "disabled";
+      document.getElementById('admin-sections-count').value = adminConfig.sectionsCount;
+      document.getElementById('admin-qns-per-sec').value = adminConfig.qnsPerSection;
+      document.getElementById('admin-time-per-qn').value = adminConfig.timePerQn;
+      document.getElementById('admin-marks-per-qn').value = adminConfig.marksPerQn;
+      document.getElementById('admin-drive-url').value = adminConfig.driveUrl;
+      updateToggleBtnText();
+      showView('faculty-dashboard-view');
+    } else if (pass !== null) {
+      alert("Incorrect Password!");
+    }
+  }
+
+  function toggleStudentLogin() {
+    adminConfig.examEnabled = !adminConfig.examEnabled;
+    db.ref('adminConfig/examEnabled').set(adminConfig.examEnabled)
+      .then(() => {
+        updateToggleBtnText();
+        alert(`Student login is now ${adminConfig.examEnabled ? 'ENABLED' : 'DISABLED'}.`);
+      });
+  }
+
+  function updateToggleBtnText() {
+    const btn = document.getElementById('toggle-student-btn');
+    if (adminConfig.examEnabled) {
+      btn.innerText = "Disable Student Login Access";
+      btn.className = "btn-danger";
+    } else {
+      btn.innerText = "Enable Student Login Access";
+      btn.className = "btn-success";
+    }
   }
 
   function populateEditDropdown() {
@@ -419,22 +570,8 @@
       .catch((err) => alert("Error saving: " + err.message));
   }
 
-  function accessAdminSettings() {
-    let pass = prompt("Enter Admin Password:");
-    if (pass === ADMIN_PASSWORD) {
-      document.getElementById('admin-exam-status').value = adminConfig.examEnabled ? "enabled" : "disabled";
-      document.getElementById('admin-sections-count').value = adminConfig.sectionsCount;
-      document.getElementById('admin-qns-per-sec').value = adminConfig.qnsPerSection;
-      document.getElementById('admin-time-per-qn').value = adminConfig.timePerQn;
-      document.getElementById('admin-marks-per-qn').value = adminConfig.marksPerQn;
-      document.getElementById('admin-drive-url').value = adminConfig.driveUrl;
-      showView('admin-view');
-    } else if (pass !== null) {
-      alert("Incorrect Password!");
-    }
-  }
-
   function saveAdminSettings() {
+    adminConfig.examName = document.getElementById('admin-exam-name').value.trim() || "Online Assessment Portal";
     adminConfig.examEnabled = (document.getElementById('admin-exam-status').value === "enabled");
     adminConfig.sectionsCount = parseInt(document.getElementById('admin-sections-count').value) || 12;
     adminConfig.qnsPerSection = parseInt(document.getElementById('admin-qns-per-sec').value) || 5;
@@ -445,19 +582,13 @@
     db.ref('adminConfig').set(adminConfig)
       .then(() => {
         alert("Admin Settings saved globally!");
-        showView('modify-view');
+        showView('faculty-dashboard-view');
       });
   }
 
   function startExamView() {
-    if (!adminConfig.examEnabled) {
-      alert("The exam is currently disabled by the administrator.");
-      return;
-    }
-
     currentQnIndex = 0;
     userAnswers = new Array(getTotalQuestions()).fill(null);
-    document.getElementById('main-nav').style.display = 'none';
     showView('exam-view');
     loadExamQuestion();
   }
@@ -537,6 +668,22 @@
     clearInterval(timerInterval);
     showView('result-view');
 
+    // Capture and Format Date & Time
+    const now = new Date();
+    const formattedDateTime = now.toLocaleString('en-US', {
+      dateStyle: 'full',
+      timeStyle: 'medium'
+    });
+
+    // Populate Results Display
+    document.getElementById('result-exam-title').innerText = adminConfig.examName || "Online Assessment Portal";
+    document.getElementById('res-stud-name').innerText = currentStudent.name;
+    document.getElementById('res-stud-dept').innerText = currentStudent.dept;
+    document.getElementById('res-stud-sem').innerText = currentStudent.sem;
+    document.getElementById('res-stud-class-num').innerText = currentStudent.classNum;
+    document.getElementById('res-stud-roll-num').innerText = currentStudent.rollNum;
+    document.getElementById('res-exam-datetime').innerText = formattedDateTime;
+
     let sectionScores = new Array(adminConfig.sectionsCount).fill(0);
     let totalScore = 0;
     let maxSectionMarks = adminConfig.qnsPerSection * adminConfig.marksPerQn;
@@ -570,7 +717,8 @@
     const area = document.getElementById('screenshot-area');
     html2canvas(area).then(canvas => {
       let link = document.createElement('a');
-      link.download = `Exam_Result_${Date.now()}.png`;
+      let sanitizedStudentName = currentStudent.name.replace(/[^a-zA-Z0-9]/g, "_");
+      link.download = `Result_${sanitizedStudentName}_${Date.now()}.png`;
       link.href = canvas.toDataURL();
       link.click();
 
@@ -579,7 +727,7 @@
       if (adminConfig.driveUrl) {
         window.open(adminConfig.driveUrl, '_blank');
       } else {
-        alert("Google Drive link is not configured.");
+        alert("Google Drive link is not configured in Admin Settings.");
       }
     });
   }
