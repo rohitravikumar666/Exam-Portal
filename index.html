@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Online Assessment Portal</title>
+  <!-- Screenshot Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <style>
+    :root {
+      --primary: #1a73e8;
+      --primary-dark: #1557b0;
+      --bg: #f4f6f9;
+      --card-bg: #ffffff;
+      --text: #202124;
+      --border: #dadce0;
+      --danger: #d93025;
+      --success: #188038;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+      background: var(--card-bg);
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    h1, h2, h3 { text-align: center; color: var(--primary); }
+
+    .nav-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 25px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover { background-color: var(--primary-dark); }
+    button:disabled { background-color: #ccc; cursor: not-allowed; }
+    button.btn-danger { background-color: var(--danger); }
+    button.btn-success { background-color: var(--success); }
+
+    .view { display: none; }
+    .active { display: block; }
+
+    .exam-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #e8f0fe;
+      padding: 15px 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+
+    .timer-box {
+      font-size: 1.2rem;
+      color: var(--danger);
+      background: #fce8e6;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--danger);
+    }
+
+    .options-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin: 20px 0;
+    }
+
+    .option-btn {
+      background: #f8f9fa;
+      color: var(--text);
+      border: 2px solid var(--border);
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 16px;
+    }
+
+    .option-btn:hover { background: #e8f0fe; border-color: var(--primary); }
+    .option-btn.selected { background: #d2e3fc; border-color: var(--primary); font-weight: bold; }
+
+    .form-group { margin-bottom: 15px; }
+    .form-row {
+      display: flex;
+      gap: 15px;
+    }
+    .form-row .form-group { flex: 1; }
+
+    label { display: block; margin-bottom: 5px; font-weight: 600; }
+    input[type="text"], input[type="number"], select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-sizing: border-box;
+    }
+
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    .result-table th, .result-table td {
+      border: 1px solid var(--border);
+      padding: 10px;
+      text-align: center;
+    }
+    .result-table th { background-color: #f1f3f4; }
+
+    #screenshot-area {
+      padding: 20px;
+      background: #ffffff;
+      border-radius: 8px;
+    }
+    
+    .status-badge {
+      text-align: center;
+      padding: 6px;
+      font-size: 13px;
+      background: #e6f4ea;
+      color: var(--success);
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Portal Examination System</h1>
+  <div id="sync-status" class="status-badge">Connecting to Live Cloud Database...</div>
+
+  <!-- Navigation -->
+  <div class="nav-buttons" id="main-nav">
+    <button onclick="showView('modify-view')">1) Add / Modify Questions</button>
+    <button onclick="accessAdminSettings()">2) Admin Settings</button>
+    <button onclick="startExamView()" id="nav-start-btn">3) Start Exam</button>
+  </div>
+
+  <!-- VIEW 1: ADD / MODIFY QUESTIONS -->
+  <div id="modify-view" class="view">
+    <h2>Add / Modify Questions (Live Cloud Sync)</h2>
+    <div class="form-group">
+      <label>Select Question:</label>
+      <select id="edit-qn-select" onchange="loadQuestionToEdit()"></select>
+    </div>
+    <div class="form-group">
+      <label>Question Text:</label>
+      <input type="text" id="edit-qn-text" placeholder="Enter question text...">
+    </div>
+    <div class="form-group"><label>Option A:</label><input type="text" id="edit-opt-a"></div>
+    <div class="form-group"><label>Option B:</label><input type="text" id="edit-opt-b"></div>
+    <div class="form-group"><label>Option C:</label><input type="text" id="edit-opt-c"></div>
+    <div class="form-group"><label>Option D:</label><input type="text" id="edit-opt-d"></div>
+    <div class="form-group">
+      <label>Correct Option:</label>
+      <select id="edit-correct-opt">
+        <option value="0">Option A</option>
+        <option value="1">Option B</option>
+        <option value="2">Option C</option>
+        <option value="3">Option D</option>
+      </select>
+    </div>
+    <button class="btn-success" onclick="saveQuestionToCloud()">Save Question Globally</button>
+  </div>
+
+  <!-- VIEW 2: ADMIN SETTINGS -->
+  <div id="admin-view" class="view">
+    <h2>Admin Settings</h2>
+    
+    <div class="form-group">
+      <label>Exam Status:</label>
+      <select id="admin-exam-status">
+        <option value="enabled">Enabled</option>
+        <option value="disabled">Disabled (Temporarily Lock Exam)</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Number of Sections:</label>
+        <input type="number" id="admin-sections-count" min="1" max="20" value="12">
+      </div>
+      <div class="form-group">
+        <label>Questions per Section:</label>
+        <input type="number" id="admin-qns-per-sec" min="1" max="50" value="5">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Time per Question (Seconds):</label>
+        <input type="number" id="admin-time-per-qn" min="5" max="300" value="15">
+      </div>
+      <div class="form-group">
+        <label>Marks per Question:</label>
+        <input type="number" id="admin-marks-per-qn" min="1" max="100" value="1">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Google Drive Upload Link:</label>
+      <input type="text" id="admin-drive-url" placeholder="https://drive.google.com/...">
+    </div>
+
+    <button class="btn-success" onclick="saveAdminSettings()">Save Admin Settings</button>
+  </div>
+
+  <!-- VIEW 3: START EXAM -->
+  <div id="exam-view" class="view">
+    <div class="exam-header">
+      <div>
+        <span id="exam-sec-title">Section 1</span> | 
+        <span id="exam-qn-num">Question 1</span>
+      </div>
+      <div class="timer-box">Time Left: <span id="timer">15</span>s</div>
+    </div>
+
+    <div id="qn-container">
+      <h3 id="qn-text">Question loading...</h3>
+      <div class="options-container" id="options-box"></div>
+    </div>
+
+    <div style="text-align: right;">
+      <button id="next-btn" onclick="nextQuestion()">Next Question &raquo;</button>
+      <button id="eval-btn" class="btn-success" style="display:none;" onclick="evaluateExam()">Evaluate Answers</button>
+    </div>
+  </div>
+
+  <!-- RESULT VIEW -->
+  <div id="result-view" class="view">
+    <div id="screenshot-area">
+      <h2>Exam Completion Summary</h2>
+      <h3 id="total-score-display">Total Score: 0</h3>
+      
+      <table class="result-table">
+        <thead>
+          <tr>
+            <th>Section</th>
+            <th>Marks Obtained</th>
+            <th>Max Marks</th>
+          </tr>
+        </thead>
+        <tbody id="result-table-body"></tbody>
+      </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 20px;">
+      <button class="btn-success" onclick="shareWithFaculty()">Share Result with Faculty</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Firebase Configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyAbNON11ukUhN9WNpCEr7N9dNonoxz7HXU",
+    authDomain: "examportal-7c259.firebaseapp.com",
+    databaseURL: "https://examportal-7c259-default-rtdb.firebaseio.com",
+    projectId: "examportal-7c259",
+    storageBucket: "examportal-7c259.firebasestorage.app",
+    messagingSenderId: "257858970888",
+    appId: "1:257858970888:web:3aecc71815e9eea0a9f8bd"
+  };
+
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const ADMIN_PASSWORD = "AP2025";
+
+  let questions = [];
+  let userAnswers = [];
+  let currentQnIndex = 0;
+  let timerInterval = null;
+  let timeLeft = 15;
+
+  // Dynamic Admin Configuration
+  let adminConfig = {
+    examEnabled: true,
+    sectionsCount: 12,
+    qnsPerSection: 5,
+    timePerQn: 15,
+    marksPerQn: 1,
+    driveUrl: "https://drive.google.com"
+  };
+
+  function getTotalQuestions() {
+    return adminConfig.sectionsCount * adminConfig.qnsPerSection;
+  }
+
+  // Synchronize Questions and Settings with Firebase
+  function listenToCloudData() {
+    db.ref('adminConfig').on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        adminConfig = data;
+      }
+      fetchQuestionsFromCloud();
+    });
+  }
+
+  function fetchQuestionsFromCloud() {
+    db.ref('questions').on('value', (snapshot) => {
+      const data = snapshot.val();
+      const totalRequired = getTotalQuestions();
+
+      if (data && data.length >= totalRequired) {
+        questions = data;
+      } else {
+        questions = generateDefaultQuestions(totalRequired, data || []);
+        db.ref('questions').set(questions);
+      }
+      populateEditDropdown();
+      loadQuestionToEdit();
+      document.getElementById('sync-status').innerText = "✓ Connected to Firebase (Live Cloud Sync Active)";
+    });
+  }
+
+  function generateDefaultQuestions(totalRequired, existingQuestions) {
+    let list = existingQuestions ? [...existingQuestions] : [];
+    for (let i = list.length; i < totalRequired; i++) {
+      let secNum = Math.floor(i / adminConfig.qnsPerSection) + 1;
+      let qnNumInSec = (i % adminConfig.qnsPerSection) + 1;
+      list.push({
+        section: `Section ${secNum}`,
+        text: `Sample Question ${i + 1} (Sec ${secNum} Q${qnNumInSec}): Select the correct statement.`,
+        options: ["Option A Text", "Option B Text", "Option C Text", "Option D Text"],
+        correct: 0
+      });
+    }
+    return list;
+  }
+
+  function showView(viewId) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+  }
+
+  function populateEditDropdown() {
+    const select = document.getElementById('edit-qn-select');
+    let currentSel = select.value || 0;
+    select.innerHTML = '';
+    
+    let totalNeeded = getTotalQuestions();
+    for (let idx = 0; idx < totalNeeded; idx++) {
+      let secNum = Math.floor(idx / adminConfig.qnsPerSection) + 1;
+      let opt = document.createElement('option');
+      opt.value = idx;
+      opt.innerText = `Q${idx + 1} [Section ${secNum}]`;
+      select.appendChild(opt);
+    }
+    select.value = currentSel < totalNeeded ? currentSel : 0;
+  }
+
+  function loadQuestionToEdit() {
+    let idx = document.getElementById('edit-qn-select').value || 0;
+    let q = questions[idx];
+    if (!q) return;
+    document.getElementById('edit-qn-text').value = q.text;
+    document.getElementById('edit-opt-a').value = q.options[0];
+    document.getElementById('edit-opt-b').value = q.options[1];
+    document.getElementById('edit-opt-c').value = q.options[2];
+    document.getElementById('edit-opt-d').value = q.options[3];
+    document.getElementById('edit-correct-opt').value = q.correct;
+  }
+
+  function saveQuestionToCloud() {
+    let idx = parseInt(document.getElementById('edit-qn-select').value);
+    let secNum = Math.floor(idx / adminConfig.qnsPerSection) + 1;
+
+    questions[idx] = {
+      section: `Section ${secNum}`,
+      text: document.getElementById('edit-qn-text').value,
+      options: [
+        document.getElementById('edit-opt-a').value,
+        document.getElementById('edit-opt-b').value,
+        document.getElementById('edit-opt-c').value,
+        document.getElementById('edit-opt-d').value
+      ],
+      correct: parseInt(document.getElementById('edit-correct-opt').value)
+    };
+    
+    db.ref('questions/' + idx).set(questions[idx])
+      .then(() => alert(`Question ${idx + 1} updated globally for all students!`))
+      .catch((err) => alert("Error saving: " + err.message));
+  }
+
+  function accessAdminSettings() {
+    let pass = prompt("Enter Admin Password:");
+    if (pass === ADMIN_PASSWORD) {
+      document.getElementById('admin-exam-status').value = adminConfig.examEnabled ? "enabled" : "disabled";
+      document.getElementById('admin-sections-count').value = adminConfig.sectionsCount;
+      document.getElementById('admin-qns-per-sec').value = adminConfig.qnsPerSection;
+      document.getElementById('admin-time-per-qn').value = adminConfig.timePerQn;
+      document.getElementById('admin-marks-per-qn').value = adminConfig.marksPerQn;
+      document.getElementById('admin-drive-url').value = adminConfig.driveUrl;
+      showView('admin-view');
+    } else if (pass !== null) {
+      alert("Incorrect Password!");
+    }
+  }
+
+  function saveAdminSettings() {
+    adminConfig.examEnabled = (document.getElementById('admin-exam-status').value === "enabled");
+    adminConfig.sectionsCount = parseInt(document.getElementById('admin-sections-count').value) || 12;
+    adminConfig.qnsPerSection = parseInt(document.getElementById('admin-qns-per-sec').value) || 5;
+    adminConfig.timePerQn = parseInt(document.getElementById('admin-time-per-qn').value) || 15;
+    adminConfig.marksPerQn = parseInt(document.getElementById('admin-marks-per-qn').value) || 1;
+    adminConfig.driveUrl = document.getElementById('admin-drive-url').value;
+    
+    db.ref('adminConfig').set(adminConfig)
+      .then(() => {
+        alert("Admin Settings saved globally!");
+        showView('modify-view');
+      });
+  }
+
+  function startExamView() {
+    if (!adminConfig.examEnabled) {
+      alert("The exam is currently disabled by the administrator.");
+      return;
+    }
+
+    currentQnIndex = 0;
+    userAnswers = new Array(getTotalQuestions()).fill(null);
+    document.getElementById('main-nav').style.display = 'none';
+    showView('exam-view');
+    loadExamQuestion();
+  }
+
+  function loadExamQuestion() {
+    clearInterval(timerInterval);
+    timeLeft = adminConfig.timePerQn;
+    document.getElementById('timer').innerText = timeLeft;
+
+    let q = questions[currentQnIndex];
+    let secNum = Math.floor(currentQnIndex / adminConfig.qnsPerSection) + 1;
+    let totalQns = getTotalQuestions();
+
+    document.getElementById('exam-sec-title').innerText = `Section ${secNum}`;
+    document.getElementById('exam-qn-num').innerText = `Question ${currentQnIndex + 1} of ${totalQns}`;
+    document.getElementById('qn-text').innerText = `${currentQnIndex + 1}. ${q.text}`;
+
+    let optionsBox = document.getElementById('options-box');
+    optionsBox.innerHTML = '';
+
+    q.options.forEach((optText, optIdx) => {
+      let btn = document.createElement('button');
+      btn.className = 'option-btn';
+      if (userAnswers[currentQnIndex] === optIdx) btn.classList.add('selected');
+      btn.innerText = `${String.fromCharCode(65 + optIdx)}) ${optText}`;
+      btn.onclick = () => selectOption(optIdx);
+      optionsBox.appendChild(btn);
+    });
+
+    if (currentQnIndex === totalQns - 1) {
+      document.getElementById('next-btn').style.display = 'none';
+      document.getElementById('eval-btn').style.display = 'inline-block';
+    } else {
+      document.getElementById('next-btn').style.display = 'inline-block';
+      document.getElementById('eval-btn').style.display = 'none';
+    }
+
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      document.getElementById('timer').innerText = timeLeft;
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        autoAdvance();
+      }
+    }, 1000);
+  }
+
+  function selectOption(optIdx) {
+    userAnswers[currentQnIndex] = optIdx;
+    let buttons = document.querySelectorAll('.option-btn');
+    buttons.forEach((b, idx) => {
+      if (idx === optIdx) b.classList.add('selected');
+      else b.classList.remove('selected');
+    });
+  }
+
+  function autoAdvance() {
+    let totalQns = getTotalQuestions();
+    if (currentQnIndex < totalQns - 1) {
+      currentQnIndex++;
+      loadExamQuestion();
+    } else {
+      evaluateExam();
+    }
+  }
+
+  function nextQuestion() {
+    clearInterval(timerInterval);
+    let totalQns = getTotalQuestions();
+    if (currentQnIndex < totalQns - 1) {
+      currentQnIndex++;
+      loadExamQuestion();
+    }
+  }
+
+  function evaluateExam() {
+    clearInterval(timerInterval);
+    showView('result-view');
+
+    let sectionScores = new Array(adminConfig.sectionsCount).fill(0);
+    let totalScore = 0;
+    let maxSectionMarks = adminConfig.qnsPerSection * adminConfig.marksPerQn;
+    let maxTotalMarks = getTotalQuestions() * adminConfig.marksPerQn;
+
+    questions.slice(0, getTotalQuestions()).forEach((q, idx) => {
+      let secIndex = Math.floor(idx / adminConfig.qnsPerSection);
+      if (userAnswers[idx] === q.correct) {
+        let questionMarks = adminConfig.marksPerQn;
+        sectionScores[secIndex] += questionMarks;
+        totalScore += questionMarks;
+      }
+    });
+
+    document.getElementById('total-score-display').innerText = `Total Score: ${totalScore} / ${maxTotalMarks}`;
+
+    let tbody = document.getElementById('result-table-body');
+    tbody.innerHTML = '';
+    sectionScores.forEach((score, sIdx) => {
+      let tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>Section ${sIdx + 1}</td>
+        <td>${score}</td>
+        <td>${maxSectionMarks}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function shareWithFaculty() {
+    const area = document.getElementById('screenshot-area');
+    html2canvas(area).then(canvas => {
+      let link = document.createElement('a');
+      link.download = `Exam_Result_${Date.now()}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+
+      alert("Result screenshot downloaded! Redirecting to Google Drive...");
+      
+      if (adminConfig.driveUrl) {
+        window.open(adminConfig.driveUrl, '_blank');
+      } else {
+        alert("Google Drive link is not configured.");
+      }
+    });
+  }
+
+  window.onload = function() {
+    listenToCloudData();
+  };
+</script>
+
+</body>
+</html>
