@@ -394,6 +394,7 @@
 
   // Dynamic Admin Configuration
   let adminConfig = {
+    authKey: FACULTY_PASSWORD,
     examName: "Online Assessment Portal",
     examEnabled: true,
     sectionsCount: 12,
@@ -412,7 +413,7 @@
     db.ref('adminConfig').on('value', (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        adminConfig = data;
+        adminConfig = Object.assign({}, adminConfig, data);
         if (adminConfig.examName) {
           document.getElementById('portal-title').innerText = adminConfig.examName;
         }
@@ -426,11 +427,10 @@
       const data = snapshot.val();
       const totalRequired = getTotalQuestions();
 
-      if (data && data.length >= totalRequired) {
+      if (data && Array.isArray(data) && data.length >= totalRequired) {
         questions = data;
       } else {
         questions = generateDefaultQuestions(totalRequired, data || []);
-        db.ref('questions').set(questions);
       }
       populateEditDropdown();
       loadQuestionToEdit();
@@ -456,6 +456,10 @@
   function showView(viewId) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(viewId).classList.add('active');
+    if (viewId === 'modify-view') {
+      populateEditDropdown();
+      loadQuestionToEdit();
+    }
   }
 
   // Student Access Controls
@@ -503,11 +507,14 @@
 
   function toggleStudentLogin() {
     adminConfig.examEnabled = !adminConfig.examEnabled;
-    db.ref('adminConfig/examEnabled').set(adminConfig.examEnabled)
+    adminConfig.authKey = FACULTY_PASSWORD;
+    
+    db.ref('adminConfig').set(adminConfig)
       .then(() => {
         updateToggleBtnText();
         alert(`Student login is now ${adminConfig.examEnabled ? 'ENABLED' : 'DISABLED'}.`);
-      });
+      })
+      .catch((err) => alert("Error updating status: " + err.message));
   }
 
   function updateToggleBtnText() {
@@ -523,7 +530,7 @@
 
   function populateEditDropdown() {
     const select = document.getElementById('edit-qn-select');
-    let currentSel = select.value || 0;
+    let currentSel = parseInt(select.value) || 0;
     select.innerHTML = '';
     
     let totalNeeded = getTotalQuestions();
@@ -538,19 +545,20 @@
   }
 
   function loadQuestionToEdit() {
-    let idx = document.getElementById('edit-qn-select').value || 0;
+    let select = document.getElementById('edit-qn-select');
+    let idx = parseInt(select.value) || 0;
     let q = questions[idx];
     if (!q) return;
-    document.getElementById('edit-qn-text').value = q.text;
-    document.getElementById('edit-opt-a').value = q.options[0];
-    document.getElementById('edit-opt-b').value = q.options[1];
-    document.getElementById('edit-opt-c').value = q.options[2];
-    document.getElementById('edit-opt-d').value = q.options[3];
-    document.getElementById('edit-correct-opt').value = q.correct;
+    document.getElementById('edit-qn-text').value = q.text || "";
+    document.getElementById('edit-opt-a').value = (q.options && q.options[0]) || "";
+    document.getElementById('edit-opt-b').value = (q.options && q.options[1]) || "";
+    document.getElementById('edit-opt-c').value = (q.options && q.options[2]) || "";
+    document.getElementById('edit-opt-d').value = (q.options && q.options[3]) || "";
+    document.getElementById('edit-correct-opt').value = q.correct !== undefined ? q.correct : 0;
   }
 
   function saveQuestionToCloud() {
-    let idx = parseInt(document.getElementById('edit-qn-select').value);
+    let idx = parseInt(document.getElementById('edit-qn-select').value) || 0;
     let secNum = Math.floor(idx / adminConfig.qnsPerSection) + 1;
 
     questions[idx] = {
@@ -567,10 +575,11 @@
     
     db.ref('questions/' + idx).set(questions[idx])
       .then(() => alert(`Question ${idx + 1} updated globally for all students!`))
-      .catch((err) => alert("Error saving: " + err.message));
+      .catch((err) => alert("Error saving question: " + err.message));
   }
 
   function saveAdminSettings() {
+    adminConfig.authKey = FACULTY_PASSWORD; // Critical for Security Rules compliance
     adminConfig.examName = document.getElementById('admin-exam-name').value.trim() || "Online Assessment Portal";
     adminConfig.examEnabled = (document.getElementById('admin-exam-status').value === "enabled");
     adminConfig.sectionsCount = parseInt(document.getElementById('admin-sections-count').value) || 12;
@@ -583,7 +592,8 @@
       .then(() => {
         alert("Admin Settings saved globally!");
         showView('faculty-dashboard-view');
-      });
+      })
+      .catch((err) => alert("Permission denied or error saving settings: " + err.message));
   }
 
   function startExamView() {
@@ -604,19 +614,21 @@
 
     document.getElementById('exam-sec-title').innerText = `Section ${secNum}`;
     document.getElementById('exam-qn-num').innerText = `Question ${currentQnIndex + 1} of ${totalQns}`;
-    document.getElementById('qn-text').innerText = `${currentQnIndex + 1}. ${q.text}`;
+    document.getElementById('qn-text').innerText = `${currentQnIndex + 1}. ${q ? q.text : 'Question text'}`;
 
     let optionsBox = document.getElementById('options-box');
     optionsBox.innerHTML = '';
 
-    q.options.forEach((optText, optIdx) => {
-      let btn = document.createElement('button');
-      btn.className = 'option-btn';
-      if (userAnswers[currentQnIndex] === optIdx) btn.classList.add('selected');
-      btn.innerText = `${String.fromCharCode(65 + optIdx)}) ${optText}`;
-      btn.onclick = () => selectOption(optIdx);
-      optionsBox.appendChild(btn);
-    });
+    if (q && q.options) {
+      q.options.forEach((optText, optIdx) => {
+        let btn = document.createElement('button');
+        btn.className = 'option-btn';
+        if (userAnswers[currentQnIndex] === optIdx) btn.classList.add('selected');
+        btn.innerText = `${String.fromCharCode(65 + optIdx)}) ${optText}`;
+        btn.onclick = () => selectOption(optIdx);
+        optionsBox.appendChild(btn);
+      });
+    }
 
     if (currentQnIndex === totalQns - 1) {
       document.getElementById('next-btn').style.display = 'none';
@@ -691,7 +703,7 @@
 
     questions.slice(0, getTotalQuestions()).forEach((q, idx) => {
       let secIndex = Math.floor(idx / adminConfig.qnsPerSection);
-      if (userAnswers[idx] === q.correct) {
+      if (q && userAnswers[idx] === q.correct) {
         let questionMarks = adminConfig.marksPerQn;
         sectionScores[secIndex] += questionMarks;
         totalScore += questionMarks;
